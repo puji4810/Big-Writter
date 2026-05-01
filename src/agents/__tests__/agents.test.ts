@@ -103,4 +103,36 @@ describe("novel agents", () => {
     expect(createContinuityCheckerAgent().systemPrompt).toContain("You MUST NOT rewrite prose")
     expect(createPreferenceBoundaryCheckerAgent().systemPrompt).toContain("You MUST NOT rewrite prose")
   })
+
+  it("IdeaInterviewer prompt references novel_write_artifact for persistence", () => {
+    const prompt = createIdeaInterviewerAgent().systemPrompt
+    expect(prompt).toContain("novel_write_artifact")
+    expect(prompt).toContain("interviewing")
+    expect(prompt).toContain("questions")
+    expect(prompt).toContain("summary")
+    const warnedKeys = ["premise", "genre", "tone", "hardBoundaries"].filter(k => prompt.includes(k))
+    expect(warnedKeys.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it("CreativeDirector prompt mentions interview persistence and interviewing gates", () => {
+    const prompt = createCreativeDirectorAgent().systemPrompt
+    expect(prompt).toContain("novel_write_artifact")
+    expect(prompt).toContain("hasInterviewArtifact")
+    expect(prompt).toContain("hasTargetAudience")
+    expect(prompt).toContain("hasStoryObjective")
+  })
+
+  it("Existing boundary assertions still pass", () => {
+    expect(createCreativeDirectorAgent().systemPrompt).toContain("You are the Creative Director for a Chinese web novel project")
+    expect(createCreativeDirectorAgent().systemPrompt).toContain("ensure all four ReviewResult gates pass")
+    expect(createCreativeDirectorAgent().systemPrompt).toContain("logic-world-motivation, prose-style-pacing, continuity, and preference-boundary")
+    expect(createIdeaInterviewerAgent().systemPrompt).toContain("You MUST NOT write prose")
+    expect(createIdeaInterviewerAgent().systemPrompt).toContain("You MUST NOT write outlines")
+    expect(createRoughOutlinerAgent().systemPrompt).toContain("You MUST NOT write detailed chapters")
+    expect(createDetailedOutlinerAgent().systemPrompt).toContain("You MUST NOT write prose")
+    expect(createCorpusAnalystAgent().systemPrompt).toContain("You MUST NOT copy source passages")
+    expect(createWriterAgent().systemPrompt).toContain("You MUST NOT update canon. All output is draft only.")
+    expect(createContinuityCheckerAgent().systemPrompt).toContain("You MUST NOT rewrite prose")
+    expect(createPreferenceBoundaryCheckerAgent().systemPrompt).toContain("You MUST NOT rewrite prose")
+  })
 })

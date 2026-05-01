@@ -1,7 +1,16 @@
 import { tool } from "@opencode-ai/plugin"
-import { ReviewResultSchema } from "../schemas"
+import { ReviewResultSchema, type ReviewResult, type RunState } from "../schemas"
 import { writeArtifact } from "../storage"
 import { addRunArtifact, artifactPath, jsonResult, projectRoot, requireCurrentRun, writeCurrentRun } from "./common"
+
+export async function recordReviewArtifact(review: ReviewResult, root: string, run?: RunState): Promise<RunState> {
+  const currentRun = run ?? await requireCurrentRun(root)
+  const path = artifactPath({ kind: "review", artifactId: review.artifactId })
+  await writeArtifact(path, review, root)
+  const updatedRun = addRunArtifact(currentRun, review.artifactId)
+  await writeCurrentRun(updatedRun, root)
+  return updatedRun
+}
 
 export function createNovelRecordReviewTool() {
   return tool({
@@ -17,11 +26,8 @@ Recovery: if validation fails, correct review stage, gate, status, reviewed hash
     async execute(args, ctx) {
       const root = projectRoot(ctx)
       const review = ReviewResultSchema.parse(args.review)
-      const run = await requireCurrentRun(root)
+      const updatedRun = await recordReviewArtifact(review, root)
       const path = artifactPath({ kind: "review", artifactId: review.artifactId })
-      await writeArtifact(path, review, root)
-      const updatedRun = addRunArtifact(run, review.artifactId)
-      await writeCurrentRun(updatedRun, root)
       return jsonResult({ recorded: true, path, artifactId: review.artifactId, gate: review.gate, status: review.status, decision: review.decision, currentRun: updatedRun })
     },
   })

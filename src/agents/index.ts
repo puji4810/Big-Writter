@@ -1,5 +1,6 @@
 import type { Config } from "@opencode-ai/plugin"
 import type { AgentConfig } from "@opencode-ai/sdk"
+import type { ResolvedConfig } from "../config"
 import { createContinuityCheckerAgent } from "./continuity-checker"
 import { createCorpusAnalystAgent } from "./corpus-analyst"
 import { createCreativeDirectorAgent } from "./creative-director"
@@ -41,18 +42,33 @@ export function createAllAgents(): NovelAgentConfig[] {
   return agentFactories.map((createAgent) => createAgent())
 }
 
-export function registerAllAgents(config: Config): void {
+type RuntimeAgentConfig = AgentConfig & {
+  model?: string
+  temperature?: number
+  maxOutputTokens?: number
+  timeoutMs?: number
+  reasoningMode?: ResolvedConfig["reasoningMode"]
+}
+
+export function registerAllAgents(config: Config, resolvedConfigs?: Record<string, ResolvedConfig>): void {
   config.agent ??= {}
 
   for (const agent of createAllAgents()) {
-    config.agent[agent.name] = toOpenCodeAgentConfig(agent)
+    config.agent[agent.name] = toOpenCodeAgentConfig(agent, resolvedConfigs?.[agent.name])
   }
 }
 
-function toOpenCodeAgentConfig(agent: NovelAgentConfig): AgentConfig {
-  return {
+function toOpenCodeAgentConfig(agent: NovelAgentConfig, resolvedConfig?: ResolvedConfig): AgentConfig {
+  const runtimeConfig: RuntimeAgentConfig = {
     description: agent.description,
     prompt: agent.systemPrompt,
     mode: agent.mode,
+    model: resolvedConfig?.modelId,
+    temperature: resolvedConfig?.temperature,
+    maxOutputTokens: resolvedConfig?.maxOutputTokens,
+    timeoutMs: resolvedConfig?.timeoutMs,
+    reasoningMode: resolvedConfig?.reasoningMode,
   }
+
+  return runtimeConfig
 }

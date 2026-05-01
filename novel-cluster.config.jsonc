@@ -1,0 +1,81 @@
+{
+  // Per-agent model/runtime configuration
+  // Precedence: built-in defaults < this file < command overrides
+  "agents": {
+    // Primary orchestrator: use the strongest model
+    "creative-director": {
+      "modelId": "claude-opus-4-20250514",  // strongest model for orchestration
+      "temperature": 0.3,                    // low temperature for deterministic decisions
+      "maxOutputTokens": 8192,
+      "timeoutMs": 300000,                   // 5 min for long planning sessions
+      "reasoningMode": "enabled"
+    },
+
+    // Writers benefit from creative temperature
+    "writer": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.9,    /* higher temperature for creative prose */
+      "maxOutputTokens": 4096,
+      "timeoutMs": 120000,
+      "reasoningMode": "auto"
+    },
+
+    // Reviewers: strict, low temperature, structured output
+    "logic-world-motivation-reviewer": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.1,
+      "maxOutputTokens": 2048,
+      "timeoutMs": 60000,  // 1 min for quick reviews
+      "reasoningMode": "enabled"
+    },
+    "prose-style-pacing-reviewer": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.1,
+      "maxOutputTokens": 2048,
+      "timeoutMs": 60000,
+      "reasoningMode": "enabled"
+    },
+    "continuity-checker": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.0,  // lowest temperature — pure logic
+      "maxOutputTokens": 2048,
+      "timeoutMs": 60000,
+      "reasoningMode": "enabled"
+    },
+    "preference-boundary-checker": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.1,
+      "maxOutputTokens": 2048,
+      "timeoutMs": 60000,
+      "reasoningMode": "enabled"
+    },
+
+    // Specialists: balanced defaults
+    "idea-interviewer": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.5,
+      "maxOutputTokens": 4096,
+      "timeoutMs": 120000
+    },
+    "rough-outliner": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.5,
+      "maxOutputTokens": 4096,
+      "timeoutMs": 120000
+    },
+    "detailed-outliner": {
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.4,
+      "maxOutputTokens": 8192,  /* detailed outlines need more tokens */
+      "timeoutMs": 180000
+    },
+    "corpus-analyst": {
+      /* corpus analysis: precise, analytical */
+      "modelId": "claude-sonnet-4-20250514",
+      "temperature": 0.2,
+      "maxOutputTokens": 4096,
+      "timeoutMs": 180000
+    }
+  }
+  // Agents not listed here will use their built-in defaults
+}

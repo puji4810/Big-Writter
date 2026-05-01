@@ -1,18 +1,19 @@
 import { tool } from "@opencode-ai/plugin"
 import { writeArtifact, type NovelArtifact } from "../storage"
 import { ArtifactPayloadSchema, ArtifactReferenceSchema, addRunArtifact, artifactPath, assertKnownPayloadMatchesReference, jsonResult, projectRoot, readCurrentRun, writeCurrentRun } from "./common"
+import { buildArtifactPayloadGuidance, WRITABLE_ARTIFACT_KINDS, RUN_ARTIFACT_BASE_FIELDS } from "../prompts/artifact-guidance"
 
 export function createNovelWriteArtifactTool() {
   return tool({
-    description: `Write a schema-validated novel artifact to a fixed .novel location.
+    description: `Write a schema-validated novel artifact to a fixed .novel location using an artifact reference (selector) and validated body payload. Supported artifact kinds: ${WRITABLE_ARTIFACT_KINDS.join(", ")}, and others.
 
-Use when an agent has produced a review result, evidence pack, canon fact set, or preference boundary profile that should be persisted.
-Accepted inputs: artifact selector plus payload validated by the existing schemas; arbitrary file paths are not accepted.
+${buildArtifactPayloadGuidance()}
+
 Outputs: written path, artifact id when present, and whether current run artifactIds were updated.
 Recovery: fix schema validation errors in payload or initialize the project before retrying.`,
     args: {
-      artifact: tool.schema.unknown().describe("Artifact selector matching the fixed artifact reference schema."),
-      payload: tool.schema.unknown().describe("Artifact payload matching one existing novel schema."),
+      artifact: tool.schema.unknown().describe("Artifact SELECTOR. Use { kind: \"kind\", artifactId: \"id\" } for run artifacts or { kind: \"boundary_profile\" } for preferences. This is the reference/look-up key, NOT the payload body."),
+      payload: tool.schema.unknown().describe("Strict schema-validated artifact body. Must match the schema for the declared artifact kind. No extra top-level keys allowed. See tool description for per-kind field inventories."),
     },
     async execute(args, ctx) {
       const root = projectRoot(ctx)

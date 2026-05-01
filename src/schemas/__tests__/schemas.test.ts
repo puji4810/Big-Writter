@@ -7,12 +7,19 @@ import {
   InterviewArtifactSchema,
   NovelProjectSchema,
   PreferenceBoundaryProfileSchema,
+  ProvenanceMetaSchema,
   ReviewResultSchema,
   RoughOutlineArtifactSchema,
   RunStateSchema,
+  SyncStatusSchema,
   computeArtifactHash,
   isReviewStale,
 } from ".."
+import {
+  ActiveOutlinePointerSchema,
+  ActiveProsePointerSchema,
+  ActiveCharacterCompilationPointerSchema,
+} from "../run"
 
 const createdAt = "2026-05-01T00:00:00.000Z"
 
@@ -205,5 +212,177 @@ describe("novel schemas", () => {
     expect(DetailedOutlineArtifactSchema.safeParse(detailedOutline).success).toBe(true)
     expect(EvidencePackSchema.safeParse(evidencePack).success).toBe(true)
     expect(CanonFactSetSchema.safeParse(canonFactSet).success).toBe(true)
+  })
+
+  test("RunState parses with active artifact pointers populated", () => {
+    const now = new Date().toISOString()
+    const run = {
+      schemaVersion: "1.0.0",
+      runId: "run-1",
+      projectId: "project-1",
+      stage: "prose_draft",
+      artifactIds: ["artifact-1"],
+      updatedAt: createdAt,
+      activeRoughOutline: {
+        artifactId: "rough-1",
+        markdownPath: "outlines/rough/rough-1.md",
+        markdownHash: computeArtifactHash("rough outline markdown"),
+        templateVersion: "1.0.0",
+        compiledAt: now,
+        syncStatus: "clean",
+      },
+      activeDetailedOutline: {
+        artifactId: "detailed-1",
+        markdownPath: "outlines/detailed/detailed-1.md",
+        markdownHash: computeArtifactHash("detailed outline markdown"),
+        templateVersion: "1.0.0",
+        compiledAt: now,
+        syncStatus: "clean",
+      },
+      activeProseSelection: {
+        artifactId: "draft-1",
+        eventReference: "chapter-3-scene-2",
+      },
+      activeCharacterCompilation: {
+        markdownPath: "canon/characters.md",
+        compiledAt: now,
+        fileCount: 3,
+      },
+    }
+
+    const result = RunStateSchema.safeParse(run)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.activeRoughOutline?.artifactId).toBe("rough-1")
+      expect(result.data.activeDetailedOutline?.syncStatus).toBe("clean")
+      expect(result.data.activeProseSelection?.eventReference).toBe("chapter-3-scene-2")
+      expect(result.data.activeCharacterCompilation?.fileCount).toBe(3)
+    }
+  })
+
+  test("RunState accepts undefined active pointers (backward compatible)", () => {
+    const legacyRun = {
+      schemaVersion: "1.0.0",
+      runId: "run-legacy",
+      projectId: "project-1",
+      stage: "interviewing",
+      artifactIds: [],
+      updatedAt: createdAt,
+    }
+
+    const result = RunStateSchema.safeParse(legacyRun)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.activeRoughOutline).toBeUndefined()
+      expect(result.data.activeDetailedOutline).toBeUndefined()
+      expect(result.data.activeProseSelection).toBeUndefined()
+      expect(result.data.activeCharacterCompilation).toBeUndefined()
+    }
+  })
+
+  test("RunState accepts null active pointers", () => {
+    const run = {
+      schemaVersion: "1.0.0",
+      runId: "run-null-pointers",
+      projectId: "project-1",
+      stage: "rough_outline_draft",
+      artifactIds: [],
+      updatedAt: createdAt,
+      activeRoughOutline: null,
+      activeDetailedOutline: null,
+      activeProseSelection: null,
+      activeCharacterCompilation: null,
+    }
+
+    const result = RunStateSchema.safeParse(run)
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.activeRoughOutline).toBeNull()
+      expect(result.data.activeDetailedOutline).toBeNull()
+      expect(result.data.activeProseSelection).toBeNull()
+      expect(result.data.activeCharacterCompilation).toBeNull()
+    }
+  })
+
+  test("SyncStatusSchema validates all four statuses", () => {
+    expect(SyncStatusSchema.safeParse("clean").success).toBe(true)
+    expect(SyncStatusSchema.safeParse("stale_markdown").success).toBe(true)
+    expect(SyncStatusSchema.safeParse("compile_failed").success).toBe(true)
+    expect(SyncStatusSchema.safeParse("orphaned_generated").success).toBe(true)
+    expect(SyncStatusSchema.safeParse("unknown_status").success).toBe(false)
+  })
+
+  test("ProvenanceMetaSchema validates compiled artifact provenance", () => {
+    const now = new Date().toISOString()
+    const valid = {
+      sourcePath: "outlines/rough/rough-1.md",
+      markdownHash: computeArtifactHash("markdown content"),
+      templateVersion: "2.0.0",
+      compiledAt: now,
+    }
+
+    expect(ProvenanceMetaSchema.safeParse(valid).success).toBe(true)
+    expect(ProvenanceMetaSchema.safeParse({ ...valid, sourcePath: "" }).success).toBe(false)
+    expect(ProvenanceMetaSchema.safeParse({ ...valid, markdownHash: "" }).success).toBe(false)
+    expect(ProvenanceMetaSchema.safeParse({ ...valid, unknownKey: "val" }).success).toBe(false)
+  })
+
+  test("ActiveOutlinePointerSchema rejects unknown extra keys", () => {
+    const now = new Date().toISOString()
+    const valid = {
+      artifactId: "rough-1",
+      markdownPath: "outlines/rough/rough-1.md",
+      markdownHash: computeArtifactHash("content"),
+      templateVersion: "1.0.0",
+      compiledAt: now,
+      syncStatus: "clean",
+    }
+
+    expect(ActiveOutlinePointerSchema.safeParse(valid).success).toBe(true)
+    expect(ActiveOutlinePointerSchema.safeParse({
+      ...valid,
+      extraField: "should not be here",
+    }).success).toBe(false)
+  })
+
+  test("ActiveProsePointerSchema validates required fields", () => {
+    const valid = {
+      artifactId: "draft-3",
+      eventReference: "chapter-5-bridge",
+    }
+
+    expect(ActiveProsePointerSchema.safeParse(valid).success).toBe(true)
+    expect(ActiveProsePointerSchema.safeParse({ ...valid, eventReference: "" }).success).toBe(false)
+    expect(ActiveProsePointerSchema.safeParse({ ...valid, extra: true }).success).toBe(false)
+  })
+
+  test("ActiveCharacterCompilationPointerSchema validates compilation metadata", () => {
+    const now = new Date().toISOString()
+    const valid = {
+      markdownPath: "canon/characters-compiled.md",
+      compiledAt: now,
+      fileCount: 5,
+    }
+
+    expect(ActiveCharacterCompilationPointerSchema.safeParse(valid).success).toBe(true)
+    expect(ActiveCharacterCompilationPointerSchema.safeParse({ ...valid, fileCount: -1 }).success).toBe(false)
+    expect(ActiveCharacterCompilationPointerSchema.safeParse({ ...valid, markdownPath: "" }).success).toBe(false)
+  })
+
+  test("RunState with active pointers still rejects unknown top-level keys", () => {
+    const run = {
+      schemaVersion: "1.0.0",
+      runId: "run-1",
+      projectId: "project-1",
+      stage: "interviewing",
+      artifactIds: [],
+      updatedAt: createdAt,
+      unknownTopLevel: "should fail",
+    }
+
+    expect(RunStateSchema.safeParse(run).success).toBe(false)
   })
 })

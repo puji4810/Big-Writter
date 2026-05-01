@@ -1,18 +1,44 @@
 import { readFile } from "node:fs/promises"
 import type { PluginInput } from "@opencode-ai/plugin"
 import { NovelError, NovelErrorCode } from "../errors"
-import { EvidencePackSchema, PreferenceBoundaryProfileSchema, RunStateSchema, type EvidencePack } from "../schemas"
+import { EvidencePackSchema, PreferenceBoundaryProfileSchema, RunStateSchema, type EvidencePack, type ReviewGateName } from "../schemas"
 import { projectExists, readArtifact, resolveNovelPath } from "../storage"
 import { StageGraph } from "../stage-graph"
+import { getActiveRoughOutlineArtifactId, getActiveDetailedOutlineArtifactId, getActiveProseArtifactId, getActiveCharacterCompilation, readRunReviews } from "../tools/common"
 
 const CONTEXT_LIMIT = 6_000
 const MAX_EVIDENCE_ITEMS = 8
 const BOUNDARY_PROFILE_PATH = "preferences/boundaries.json"
 
+export type ActiveOutlineSummary = {
+  artifactId: string
+  markdownPath: string
+  markdownHash: string
+  templateVersion: string
+  compiledAt: string
+  syncStatus: string
+}
+
+export type ActiveProseSummary = {
+  artifactId: string
+  eventReference: string
+}
+
+export type ActiveCharacterSummary = {
+  markdownPath: string
+  compiledAt: string
+  fileCount: number
+}
+
 export type CompactContextSummary = {
   activeRunId?: string
   currentStage?: string
   pendingGates?: string[]
+  activeRoughOutline?: ActiveOutlineSummary | null
+  activeDetailedOutline?: ActiveOutlineSummary | null
+  activeProseSelection?: ActiveProseSummary | null
+  activeCharacterCompilation?: ActiveCharacterSummary | null
+  reviewGateStatuses?: Partial<Record<ReviewGateName, string>>
   preferences?: {
     markdown?: string
     profile?: {
@@ -53,15 +79,58 @@ export async function buildCompactContextSummary(projectRoot: string): Promise<C
     return { hint: "novel project not initialized" }
   }
 
-  const [preferences, evidenceSummary] = await Promise.all([
+  const [preferences, evidenceSummary, reviewGateStatuses] = await Promise.all([
     readPreferences(projectRoot),
     readEvidenceSummary(projectRoot, run.data.artifactIds),
+    readReviewGateStatuses(run.data, projectRoot),
   ])
+
+  const activeRoughOutline: ActiveOutlineSummary | null = run.data.activeRoughOutline
+    ? {
+        artifactId: run.data.activeRoughOutline.artifactId,
+        markdownPath: run.data.activeRoughOutline.markdownPath,
+        markdownHash: run.data.activeRoughOutline.markdownHash,
+        templateVersion: run.data.activeRoughOutline.templateVersion,
+        compiledAt: run.data.activeRoughOutline.compiledAt,
+        syncStatus: run.data.activeRoughOutline.syncStatus,
+      }
+    : null
+
+  const activeDetailedOutline: ActiveOutlineSummary | null = run.data.activeDetailedOutline
+    ? {
+        artifactId: run.data.activeDetailedOutline.artifactId,
+        markdownPath: run.data.activeDetailedOutline.markdownPath,
+        markdownHash: run.data.activeDetailedOutline.markdownHash,
+        templateVersion: run.data.activeDetailedOutline.templateVersion,
+        compiledAt: run.data.activeDetailedOutline.compiledAt,
+        syncStatus: run.data.activeDetailedOutline.syncStatus,
+      }
+    : null
+
+  const activeProseSelection: ActiveProseSummary | null = run.data.activeProseSelection
+    ? {
+        artifactId: run.data.activeProseSelection.artifactId,
+        eventReference: run.data.activeProseSelection.eventReference,
+      }
+    : null
+
+  const activeCharacterCompilation: ActiveCharacterSummary | null = run.data.activeCharacterCompilation
+    ? {
+        markdownPath: run.data.activeCharacterCompilation.markdownPath,
+        compiledAt: run.data.activeCharacterCompilation.compiledAt,
+        fileCount: run.data.activeCharacterCompilation.fileCount,
+      }
+    : null
 
   return {
     activeRunId: run.data.runId,
     currentStage: run.data.stage,
     pendingGates: StageGraph.getRequiredGates(run.data.stage),
+    activeRoughOutline,
+    activeDetailedOutline,
+    activeProseSelection,
+    activeCharacterCompilation,
+    reviewGateStatuses: Object.keys(reviewGateStatuses).length > 0 ? reviewGateStatuses : undefined,
     preferences,
     evidenceSummary,
   }
@@ -90,6 +159,31 @@ export function createContextInjectorHook(ctx: PluginInput) {
       output.context.push(await loadContext())
     },
   }
+}
+
+async function readReviewGateStatuses(run: { artifactIds: string[]; stage: string }, projectRoot: string): Promise<Partial<Record<ReviewGateName, string>>> {
+  const reviews = await readRunReviews(
+    { artifactIds: run.artifactIds, stage: run.stage } as Parameters<typeof readRunReviews>[0],
+    projectRoot,
+  ).catch(() => [])
+
+  const statusMap: Partial<Record<ReviewGateName, string>> = {}
+  for (const review of reviews) {
+    const current = statusMap[review.gate]
+    if (review.status === "pass" && current === "pass") continue
+    if (review.status === "fail") {
+      statusMap[review.gate] = "fail"
+      continue
+    }
+    if (review.status === "needs_user_input") {
+      statusMap[review.gate] = "needs_user_input"
+      continue
+    }
+    if (!current) {
+      statusMap[review.gate] = review.status
+    }
+  }
+  return statusMap
 }
 
 async function readPreferences(projectRoot: string): Promise<CompactContextSummary["preferences"]> {
@@ -190,4 +284,3 @@ function trimToLimit(value: string, limit: number): string {
   }
   return `${value.slice(0, limit - 32)}\n...[compact context truncated]`
 }
-

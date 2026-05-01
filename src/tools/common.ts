@@ -251,3 +251,28 @@ export function assertKnownPayloadMatchesReference(reference: ArtifactReference,
 function throwMismatch(kind: ArtifactReference["kind"]): never {
   throw new NovelError(NovelErrorCode.ARTIFACT_CORRUPT, `Payload does not match ${kind} artifact schema`)
 }
+
+export function getActiveRoughOutlineArtifactId(run: RunState): string | null {
+  return run.activeRoughOutline?.artifactId ?? null
+}
+
+export function getActiveDetailedOutlineArtifactId(run: RunState): string | null {
+  return run.activeDetailedOutline?.artifactId ?? null
+}
+
+export function getActiveProseArtifactId(run: RunState): string | null {
+  return run.activeProseSelection?.artifactId ?? null
+}
+
+export function getActiveCharacterCompilation(run: RunState): RunState["activeCharacterCompilation"] {
+  return run.activeCharacterCompilation ?? null
+}
+
+export function isRunUpgraded(run: RunState): boolean {
+  return (
+    run.activeRoughOutline !== undefined ||
+    run.activeDetailedOutline !== undefined ||
+    run.activeProseSelection !== undefined ||
+    run.activeCharacterCompilation !== undefined
+  )
+}

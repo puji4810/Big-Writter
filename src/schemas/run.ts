@@ -30,6 +30,40 @@ export const ArtifactStatusSchema = z.enum([
   "archived",
 ])
 
+export const SyncStatusSchema = z.enum([
+  "clean",
+  "stale_markdown",
+  "compile_failed",
+  "orphaned_generated",
+])
+
+export const ProvenanceMetaSchema = z.object({
+  sourcePath: z.string().min(1),
+  markdownHash: z.string().min(1),
+  templateVersion: z.string().min(1),
+  compiledAt: z.string().datetime(),
+}).strict()
+
+export const ActiveOutlinePointerSchema = z.object({
+  artifactId: z.string().min(1),
+  markdownPath: z.string().min(1),
+  markdownHash: z.string().min(1),
+  templateVersion: z.string().min(1),
+  compiledAt: z.string().datetime(),
+  syncStatus: SyncStatusSchema,
+}).strict()
+
+export const ActiveProsePointerSchema = z.object({
+  artifactId: z.string().min(1),
+  eventReference: z.string().min(1),
+}).strict()
+
+export const ActiveCharacterCompilationPointerSchema = z.object({
+  markdownPath: z.string().min(1),
+  compiledAt: z.string().datetime(),
+  fileCount: z.number().int().nonnegative(),
+}).strict()
+
 export const RunArtifactBaseSchema = z.object({
   schemaVersion: z.string().min(1),
   artifactId: z.string().min(1),
@@ -47,9 +81,18 @@ export const RunStateSchema = z.object({
   stage: StageSchema,
   artifactIds: z.array(z.string().min(1)),
   updatedAt: z.string().datetime(),
+  activeRoughOutline: ActiveOutlinePointerSchema.nullable().optional(),
+  activeDetailedOutline: ActiveOutlinePointerSchema.nullable().optional(),
+  activeProseSelection: ActiveProsePointerSchema.nullable().optional(),
+  activeCharacterCompilation: ActiveCharacterCompilationPointerSchema.nullable().optional(),
 }).strict()
 
 export type Stage = z.infer<typeof StageSchema>
 export type ArtifactStatus = z.infer<typeof ArtifactStatusSchema>
+export type SyncStatus = z.infer<typeof SyncStatusSchema>
+export type ProvenanceMeta = z.infer<typeof ProvenanceMetaSchema>
+export type ActiveOutlinePointer = z.infer<typeof ActiveOutlinePointerSchema>
+export type ActiveProsePointer = z.infer<typeof ActiveProsePointerSchema>
+export type ActiveCharacterCompilationPointer = z.infer<typeof ActiveCharacterCompilationPointerSchema>
 export type RunArtifactBase = z.infer<typeof RunArtifactBaseSchema>
 export type RunState = z.infer<typeof RunStateSchema>
